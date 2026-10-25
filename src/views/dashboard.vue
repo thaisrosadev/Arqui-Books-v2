@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'                          // ref = caixinha; computed = cálculo automático
 import { useRouter } from 'vue-router'                       // para abrir a tela do relatório
 import Sidebar from '../components/Sidebar.vue'              // menu lateral + barra superior
-import { livros, alunos, emprestimos, historico } from '../dados.js' // dados compartilhados
+import { livros, alunos, emprestimos, historico, recarregar } from '../dados.js' // dados (vêm do banco) e função que busca de novo
 import { hojeISO, chaveMes, somaMeses, nomeDoMes, formatarData, calcularPainel, variacao } from '../regras.js'
 
 const router = useRouter()                                   // controle de navegação
@@ -126,12 +126,11 @@ function mudarMes(n) {                                       // setas ‹ ›
   mesSel.value = somaMeses(mesSel.value, n)
 }
 
-function atualizar() {                                       // botão "Atualizar" (por enquanto só simula; com PHP vai buscar no banco)
+async function atualizar() {                                 // botão "Atualizar": busca tudo de novo no banco
   girando.value = true
-  setTimeout(() => {
-    girando.value = false
-    atualizadoEm.value = horaAgora()
-  }, 800)
+  await recarregar()
+  atualizadoEm.value = horaAgora()
+  girando.value = false
 }
 
 function exportarPdf() {                                     // botão "Exportar PDF": abre o relatório do MÊS ESCOLHIDO

@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue' // ref = caixinha; computed = cálculo automático
 import { useRouter } from 'vue-router'                       // para levar a pessoa à tela da notificação
-import { livros, alunos, emprestimos, notificacoesLidas } from '../dados.js' // dados compartilhados
+import { livros, alunos, emprestimos, notificacoesLidas, erroApi } from '../dados.js' // dados compartilhados e aviso de erro do servidor
 import { gerarNotificacoes, hojeISO } from '../regras.js'    // regra que cria as notificações
+import { apiPost, limparSessao, usuarioLogado } from '../api.js' // sessão do usuário (login)
 
 defineProps({
   pageTitle: { type: String, required: true },
@@ -12,6 +13,8 @@ defineProps({
 const router = useRouter()                                   // controle de navegação
 const sidebarOpen = ref(false)                               // menu lateral aberto (celular)
 const mostrarNotif = ref(false)                              // painel do sino aberto?
+const mostrarUsuario = ref(false)                            // menu "Bibliotecário ▾" aberto?
+const nomeUsuario = (usuarioLogado() && usuarioLogado().nome) || 'Bibliotecário'
 
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
@@ -50,6 +53,13 @@ function alternarNotif() {                                   // clicou no sino
 
 function fecharNotif() {                                     // clicou fora do painel
   mostrarNotif.value = false
+  mostrarUsuario.value = false
+}
+
+async function sair() {                                      // botão Sair: apaga a sessão e volta ao login
+  try { await apiPost('/api/auth.php', { acao: 'sair' }) } catch (e) { /* mesmo se falhar, sai */ }
+  limparSessao()
+  router.push('/login')
 }
 
 onMounted(() => document.addEventListener('click', fecharNotif))     // escuta cliques na página
@@ -97,9 +107,6 @@ const ICONES = {                                             // ícone e cor de 
           <RouterLink to="/emprestimos" class="nav-link" :class="{ active: active === 'emprestimos' }" @click="closeSidebar">
             <i class="bi bi-box-arrow-in-down nav-icon"></i> Empréstimos
           </RouterLink>
-          <RouterLink to="/devolucoes" class="nav-link" :class="{ active: active === 'devolucoes' }" @click="closeSidebar">
-            <i class="bi bi-box-arrow-up nav-icon"></i> Devoluções
-          </RouterLink>
         </div>
 
         <div class="nav-group">
@@ -110,13 +117,6 @@ const ICONES = {                                             // ícone e cor de 
         </div>
       </nav>
 
-      <div class="sidebar-user">
-        <div class="user-avatar"></div>
-        <div>
-          <strong>Bibliotecária</strong>
-          <small>Administrador</small>
-        </div>
-      </div>
     </aside>
 
     <div class="sidebar-overlay" v-if="sidebarOpen" @click="closeSidebar"></div>
@@ -128,8 +128,6 @@ const ICONES = {                                             // ícone e cor de 
           <h2>{{ pageTitle }}</h2>
         </div>
         <div class="topbar-actions">
-          <input type="text" class="topbar-search" placeholder="" />
-
           <!-- SINO DE NOTIFICAÇÕES -->
           <div class="notif-wrap">
             <!-- @click.stop: o clique no sino não deve fechar o painel logo em seguida -->
@@ -160,10 +158,26 @@ const ICONES = {                                             // ícone e cor de 
               </ul>
             </div>
           </div>
+
+          <!-- MENU DO USUÁRIO -->
+          <div class="usuario-wrap">
+            <button class="usuario-btn" @click.stop="mostrarUsuario = !mostrarUsuario; mostrarNotif = false">
+              <span class="user-avatar"></span>
+              <span>{{ nomeUsuario }}</span>
+              <i class="bi bi-chevron-down"></i>
+            </button>
+            <div v-if="mostrarUsuario" class="usuario-menu" @click.stop>
+              <button @click="sair"><i class="bi bi-box-arrow-right"></i> Sair</button>
+            </div>
+          </div>
         </div>
       </header>
 
       <main class="page-content">
+        <!-- barra vermelha: aparece quando o PHP/banco não responde -->
+        <div v-if="erroApi" class="alert alert-danger">
+          <strong>Sem conexão com o servidor.</strong> {{ erroApi }}
+        </div>
         <slot />
       </main>
     </div>
@@ -171,6 +185,12 @@ const ICONES = {                                             // ícone e cor de 
 </template>
 
 <style scoped>
+.usuario-wrap { position: relative; margin-left: 0.5rem; }
+.usuario-btn { display: flex; align-items: center; gap: 0.5rem; background: none; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; color: #1f2430; }
+.usuario-btn .user-avatar { width: 32px; height: 32px; }
+.usuario-menu { position: absolute; right: 0; top: 44px; z-index: 3000; min-width: 140px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12); padding: 0.3rem; }
+.usuario-menu button { width: 100%; text-align: left; background: none; border: none; padding: 0.55rem 0.7rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; }
+.usuario-menu button:hover { background: #f1f3f5; }
 .notif-wrap { position: relative; }                       /* o painel se posiciona em relação ao sino */
 .notif-btn { position: relative; display: inline-flex; align-items: center; justify-content: center; font-size: 1.1rem; color: #1f2430; }
 .notif-badge {                                            /* bolinha vermelha com o contador */
